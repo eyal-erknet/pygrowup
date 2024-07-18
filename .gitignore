@@ -16,3 +16,6 @@ logs/*
 # eclipse stuff
 .settings
 .DS_Store
+.venv/
+build/
+dist/

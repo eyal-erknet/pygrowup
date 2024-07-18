@@ -1,3 +1,8 @@
+Version 0.9.0
+* Removed 'six'
+* Added type-hinting
+* Minor code adjustments
+
 Version 0.8.0 released 2015-06-26
 * drop beta from version so pip will install the correct/latest
 

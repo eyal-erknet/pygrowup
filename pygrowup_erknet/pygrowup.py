@@ -1,24 +1,25 @@
-#!/usr/bin/env python
-# vim: ai ts=4 sts=4 et sw=4
 import os
 import math
 import decimal
 import logging
 import json
 from decimal import Decimal as D
-
-import six
+from pathlib import Path
+from typing import Dict, List, Any, Union
 
 from . import exceptions
 
-
-# TODO is this the best way to get this file's directory?
-module_dir = os.path.split(os.path.abspath(__file__))[0]
-
+module_dir = Path(__file__).resolve().parent
 
 class Observation(object):
-    def __init__(self, indicator, measurement, age_in_months, sex,
-                 height, american, logger_name):
+    def __init__(self, 
+                 indicator: str,
+                 measurement : Union[float, int, D],
+                 age_in_months: Union[float, int, D],
+                 sex: str,
+                 height: Union[float, int, D, None], 
+                 american: bool, 
+                 logger_name: str) -> None:
         self.logger = logging.getLogger(logger_name)
 
         self.indicator = indicator
@@ -37,11 +38,11 @@ class Observation(object):
                 raise exceptions.InvalidMeasurement('no length or height')
 
     @property
-    def age_in_weeks(self):
+    def age_in_weeks(self) -> D:
         return ((self.age * D('30.4374')) / D(7))
 
     @property
-    def rounded_height(self):
+    def rounded_height(self) -> str:
         """ Rounds height to closest half centimeter -- the resolution
             of the WHO tables. Oddly, the WHO tables do not include
             decimal places for whole centimeters, so some strange
@@ -57,9 +58,9 @@ class Observation(object):
         # otherwise return with decimal places
         return rounded.to_eng_string()
 
-    def get_zscores(self, growth):
+    def get_zscores(self, tables: Dict[str, Dict[str, Union[List[Dict], str]]]) -> Dict[str, str]:
         table_name = self.resolve_table()
-        table = getattr(growth, table_name)
+        table = tables.get(table_name)
         if self.indicator in ["wfh", "wfl"]:
             assert self.height is not None
             if D(self.height) < D(45):
@@ -73,7 +74,7 @@ class Observation(object):
             # (e.g., 60, 60.5)
             closest_height = self.rounded_height
             self.logger.debug("looking up scores with: %s" % closest_height)
-            scores = table.get(closest_height)
+            scores = table.get(closest_height, None)
             if scores is not None:
                 return scores
             raise exceptions.DataNotFound("SCORES NOT FOUND BY HEIGHT: %s => "
@@ -89,14 +90,14 @@ class Observation(object):
                                               " %s" % (str(self.age_in_weeks),
                                                        closest_week))
             closest_month = str(int(math.floor(self.age)))
-            scores = table.get(closest_month)
+            scores = table.get(closest_month, None)
             if scores is not None:
                 return scores
             raise exceptions.DataNotFound("SCORES NOT FOUND BY MONTH: %s =>"
                                           " %s" % (str(self.age),
                                                    closest_month))
 
-    def resolve_table(self):
+    def resolve_table(self) -> str:
         """ Choose a WHO/CDC table to use, making adjustments
         based on age, length, or height. If, for example, the
         indicator is set to wfl while the child is too long for
@@ -165,10 +166,7 @@ class Observation(object):
                     self.table_age = '2_5'
                 else:
                     raise exceptions.DataNotFound()
-        table = "%(table_indicator)s_%(table_sex)s_%(table_age)s" %\
-                {"table_indicator": self.table_indicator,
-                 "table_sex": self.table_sex,
-                 "table_age": self.table_age}
+        table = f"{self.table_indicator}_{self.table_sex}_{self.table_age}"
         self.logger.debug(table)
         # raise if any table name parts have not been resolved
         if not all([self.table_indicator, self.table_sex, self.table_age]):
@@ -178,34 +176,39 @@ class Observation(object):
 
 class Calculator(object):
 
-    def __reformat_table(self, table_name):
+    def __reformat_table(self, table_name: str, table_obj: List[Dict[str, Any]]) -> Dict[Any, Union[str, Dict[str, Any]]]:
         """ Reformat list of dicts to single dict
         with each item keyed by age, length, or height."""
-        list_of_dicts = getattr(self, table_name)
-        if 'Length' in list_of_dicts[0]:
+        first_item = table_obj[0]
+        if 'Length' in first_item:
             field_name = 'Length'
-        elif 'Height' in list_of_dicts[0]:
+        elif 'Height' in first_item:
             field_name = 'Height'
-        elif 'Month' in list_of_dicts[0]:
+        elif 'Month' in first_item:
             field_name = 'Month'
-        elif 'Week' in list_of_dicts[0]:
+        elif 'Week' in first_item:
             field_name = 'Week'
         else:
-            raise exceptions.DataError('error loading: %s' % table_name)
+            raise exceptions.DataError(f'error loading: {table_name}')
         new_dict = {'field_name': field_name}
-        for d in list_of_dicts:
-            new_dict.update({d[field_name]: d})
-        setattr(self, table_name, new_dict)
-
-    def __init__(self, adjust_height_data=False, adjust_weight_scores=False,
-                 include_cdc=False, logger_name='pygrowup', log_level="INFO"):
+        for d in table_obj:
+            new_dict[d[field_name]] = d
+        return new_dict
+    
+    def __init__(self,
+                 adjust_height_data: bool = False,
+                 adjust_weight_scores: bool = False,
+                 include_cdc: bool = False,
+                 decimal_persision: int = 20,
+                 logger_name:str = 'pygrowup',
+                 log_level:str = "INFO") -> None:
         self.logger = logging.getLogger(logger_name)
         self.logger.setLevel(getattr(logging, log_level))
 
         # use decimal.Decimal instead of float to avoid unwanted rounding
         # http://docs.sun.com/source/806-3568/ncg_goldberg.html
-        # TODO set a custom precision
         self.context = decimal.getcontext()
+        self.context.prec = decimal_persision
 
         # Height adjustments are part of the WHO specification
         # (to correct for recumbent vs standing measurements),
@@ -260,65 +263,69 @@ class Calculator(object):
             'bmifa_boys_2_20_zscores.cdc.json',
             'bmifa_girls_2_20_zscores.cdc.json', ]
 
-        # TODO is this the best way to find the tables?
-        table_dir = os.path.join(module_dir, 'tables')
+        self.tables = {}
+        table_dir = module_dir / 'tables'
         tables_to_load = WHO_tables
         if self.include_cdc:
             tables_to_load = tables_to_load + CDC_tables
         for table in tables_to_load:
-            table_file = os.path.join(table_dir, table)
-            with open(table_file, 'r') as f:
+            table_file = table_dir / table
+            with table_file.open() as f:
                 # drop _zscores.json from table name and use
                 # result as attribute name
                 # (e.g., wfa_boys_0_5_zscores.json => wfa_boys_0_5)
-                table_name, underscore, zscore_part =\
-                    table.split('.')[0].rpartition('_')
-                setattr(self, table_name, json.load(f))
-                self.__reformat_table(table_name)
+                table_name, underscore, zscore_part = table.split('.')[0].rpartition('_')
+                self.tables[table_name] = self.__reformat_table(table_name, json.load(f))
 
     # convenience methods
-    def lhfa(self, measurement=None, age_in_months=None, sex=None, height=None):
+    def lhfa(self, measurement: Union[float, int, D, None] = None, age_in_months: Union[float, int, D, None] = None, sex: Union[str, None] = None, height: Union[float, int, None] = None) -> D:
         """ Calculate length/height-for-age """
         return self.zscore_for_measurement('lhfa', measurement=measurement,
                                            age_in_months=age_in_months,
                                            sex=sex, height=height)
 
-    def wfl(self, measurement=None, age_in_months=None, sex=None, height=None):
+    def wfl(self, measurement: Union[float, int, D, None] = None, age_in_months: Union[float, int, D, None] = None, sex: Union[str, None] = None, height: Union[float, int, None] = None) -> D:
         """ Calculate weight-for-length """
         return self.zscore_for_measurement('wfl', measurement=measurement,
                                            age_in_months=age_in_months,
                                            sex=sex, height=height)
 
-    def wfh(self, measurement=None, age_in_months=None, sex=None, height=None):
+    def wfh(self, measurement: Union[float, int, D, None] = None, age_in_months: Union[float, int, D, None] = None, sex: Union[str, None] = None, height: Union[float, int, None] = None) -> D:
         """ Calculate weight-for-height """
         return self.zscore_for_measurement('wfh', measurement=measurement,
                                            age_in_months=age_in_months,
                                            sex=sex, height=height)
 
-    def wfa(self, measurement=None, age_in_months=None, sex=None, height=None):
+    def wfa(self, measurement: Union[float, int, D, None] = None, age_in_months: Union[float, int, D, None] = None, sex: Union[str, None] = None, height: Union[float, int, None] = None) -> D:
         """ Calculate weight-for-age """
         return self.zscore_for_measurement('wfa', measurement=measurement,
                                            age_in_months=age_in_months,
                                            sex=sex, height=height)
 
-    def bmifa(self, measurement=None, age_in_months=None, sex=None, height=None):
+    def bmifa(self, measurement: Union[float, int, D, None] = None, age_in_months: Union[float, int, D, None] = None, sex: Union[str, None] = None, height: Union[float, int, None] = None) -> D:
         """ Calculate body-mass-index-for-age """
         return self.zscore_for_measurement('bmifa', measurement=measurement,
                                            age_in_months=age_in_months,
                                            sex=sex, height=height)
 
-    def hcfa(self, measurement=None, age_in_months=None, sex=None, height=None):
+    def hcfa(self, measurement: Union[float, int, D, None] = None, age_in_months: Union[float, int, D, None] = None, sex: Union[str, None] = None, height: Union[float, int, None] = None) -> D:
         """ Calculate head-circumference-for-age """
         return self.zscore_for_measurement('hcfa', measurement=measurement,
                                            age_in_months=age_in_months,
                                            sex=sex, height=height)
 
-    def zscore_for_measurement(self, indicator, measurement, age_in_months, sex, height=None):
+    def zscore_for_measurement(self,
+                               indicator: str, 
+                               measurement : Union[float, int, D],
+                               age_in_months: Union[float, int, D],
+                               sex: str,
+                               height: Union[float, int, None] = None) -> D:
         assert sex is not None
-        assert isinstance(sex, six.string_types)
+        assert isinstance(sex, str)
         assert sex.upper() in ["M", "F"]
         assert age_in_months is not None
         assert indicator is not None
+        assert isinstance(indicator, str)
         assert indicator.lower() in ["lhfa", "wfl", "wfh", "wfa", "bmifa", "hcfa"]
         # reject blank measurements
         assert measurement not in ['', ' ', None]
@@ -355,7 +362,7 @@ class Calculator(object):
             y = y + D('0.7')
 
         # get zscore from appropriate table
-        zscores = obs.get_zscores(self)
+        zscores = obs.get_zscores(self.tables)
 
         if zscores is None:
             raise exceptions.DataNotFound()

@@ -7,7 +7,6 @@ from decimal import Decimal as D
 import nose
 
 from . import pygrowup
-from six.moves import zip
 
 
 class WHOResult(object):
