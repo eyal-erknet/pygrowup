@@ -16,6 +16,9 @@ setup(
 
     packages=find_packages(),
     include_package_data=True,
+    package_data={
+        package_name: ['tables/**/*', 'testdata/**/*']
+    },
 
     author="Evan Wheeler",
     author_email="evanmwheeler@gmail.com",
@@ -27,8 +30,8 @@ setup(
     long_description=long_description,
     long_description_content_type='text/markdown',
     url="https://github.com/eyal-erknet/pygrowup",
-    download_url=f"https://github.com/eyal-erknet/pygrowup/archive/{version}.tar.gz",
-    install_requires=[],
+    download_url=f"https://pypi.org/project/pygrowup-erknet/{version}",
+    install_requires=['openpyxl', 'requests'],
     classifiers=[
         'Intended Audience :: Healthcare Industry',
         'Programming Language :: Python :: 3',

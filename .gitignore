@@ -1,5 +1,6 @@
 __version__.py
-*.pyc
+__pycache__/
+*.py[cod]
 *.swp
 *~
 local.ini
@@ -13,9 +14,10 @@ logs/*
 *~
 \#*
 *.log*
-# eclipse stuff
 .settings
 .DS_Store
 .venv/
 build/
 dist/
+pygrowup_erknet.egg-info/
+pygrowup_erknet/tables/cache/

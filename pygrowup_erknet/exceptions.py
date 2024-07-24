@@ -1,17 +1,23 @@
 class PyGrowUpError(RuntimeError):
     pass
 
-class DataNotFound(PyGrowUpError):
+class DataNotFoundError(PyGrowUpError):
     pass
 
-
-class DataError(PyGrowUpError):
+class InvalidTableNameError(PyGrowUpError):
     pass
 
-
-class InvalidAge(PyGrowUpError):
+class InvalidIndexError(PyGrowUpError):
     pass
 
+class InvalidAgeError(InvalidIndexError):
+    pass
+
+class InvalidLengthError(InvalidIndexError):
+    pass
+
+class InvalidSexError(PyGrowUpError):
+    pass
 
 class InvalidMeasurement(PyGrowUpError):
     pass

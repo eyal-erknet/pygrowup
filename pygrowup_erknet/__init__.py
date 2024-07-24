@@ -1,13 +1,13 @@
 from .pygrowup import Calculator
+from .tables import TableType, Sex
 
 __version_info__ = {
     'major': 0,
     'minor': 9,
-    'micro': 0,
+    'micro': 4,
     'releaselevel': 'final',
     'serial': 0,
 }
-
 
 def get_version(short=False):
     assert __version_info__['releaselevel'] in ('alpha', 'beta', 'final')

@@ -1,3 +1,9 @@
+Version 0.9.4 released 2024-07-24
+* Rewritten version
+* Downloads the latest growth tables upon first run
+* Corrects CDC BMI based on the sigma correction (introduced in 2022)
+* Fully modifiable approach with the option to add additional growth tables
+
 Version 0.9.0
 * Removed 'six'
 * Added type-hinting
